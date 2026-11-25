@@ -1,97 +1,29 @@
 .header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   height: 48px;
   flex-shrink: 0;
+  padding: 0 12px;
+  border-bottom: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.035);
 }
+.left, .right { z-index: 1; display: flex; align-items: center; gap: 8px; }
+.left { flex: 1; }
+.right { flex: 1; justify-content: flex-end; }
+.center { position: absolute; inset: 0 24%; display: flex; align-items: center; justify-content: center; min-width: 0; }
+.backLink { color: #9ad3c2; text-decoration: none; font-size: 12px; white-space: nowrap; }
+.title { max-width: 100%; overflow: hidden; color: #f0f4f2; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 700; }
+.title:hover { color: #9ad3c2; }
+.infoButton, .githubLink { display: flex; align-items: center; gap: 5px; padding: 5px 8px; border: 1px solid rgba(255,255,255,.16); border-radius: 5px; background: rgba(255,255,255,.06); color: #dbe5e1; text-decoration: none; cursor: pointer; font-size: 11px; white-space: nowrap; }
+.githubIcon { width: 16px; height: 16px; }
+.starCount { font-size: 11px; }
 
-.left {
-  flex: 1;
-  display: flex;
-  align-items: center;
-}
-
-.center {
-  flex: 2;
-  display: flex;
-  justify-content: center;
-}
-
-.right {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.backLink {
-  color: #64b5f6;
-  text-decoration: none;
-  font-size: 13px;
-  transition: color 0.2s;
-  white-space: nowrap;
-}
-
-.backLink:hover {
-  color: #90caf9;
-}
-
-.title {
-  color: #fff;
-  text-decoration: none;
-  font-size: 18px;
-  font-weight: 600;
-  transition: color 0.2s;
-}
-
-.title:hover {
-  color: #64b5f6;
-}
-
-.infoButton {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #fff;
-  padding: 6px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-
-.infoButton:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.3);
-}
-
-.githubLink {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #fff;
-  text-decoration: none;
-  padding: 6px 10px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  transition: all 0.2s;
-}
-
-.githubLink:hover {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.githubIcon {
-  width: 18px;
-  height: 18px;
-}
-
-.starCount {
-  font-size: 13px;
-  font-weight: 500;
+@media (max-width: 760px) {
+  .center { inset-inline: 30%; }
+  .backLink { overflow: hidden; max-width: 74px; text-overflow: ellipsis; }
+  .infoButton { font-size: 0; }
+  .infoButton::before { content: '💡'; font-size: 12px; }
+  .starCount { display: none; }
 }

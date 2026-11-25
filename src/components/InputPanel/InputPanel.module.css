@@ -1,169 +1,37 @@
 .container {
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.03);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
   flex-shrink: 0;
-}
-
-.algorithmSelector {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.algorithmTabs {
-  display: flex;
-  gap: 4px;
-}
-
-.algorithmTab {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 6px 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  color: #aaa;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 13px;
-}
-
-.algorithmTab:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-}
-
-.algorithmTab.active {
-  background: rgba(76, 175, 80, 0.2);
-  border-color: #4caf50;
-  color: #4caf50;
-}
-
-.complexity {
-  font-size: 10px;
-  opacity: 0.7;
-  margin-top: 2px;
-}
-
-.inputSection {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.inputGroup {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.label {
-  color: #aaa;
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.input {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
-  color: #fff;
-  padding: 6px 10px;
-  font-size: 13px;
-  width: 300px;
-  font-family: 'Monaco', 'Menlo', monospace;
-}
-
-.input:focus {
-  outline: none;
-  border-color: #4caf50;
-}
-
-.targetInput {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
-  color: #fff;
-  padding: 6px 10px;
-  font-size: 13px;
-  width: 80px;
-  font-family: 'Monaco', 'Menlo', monospace;
-}
-
-.targetInput:focus {
-  outline: none;
-  border-color: #4caf50;
-}
-
-.applyButton {
-  background: #4caf50;
-  border: none;
-  color: #fff;
-  padding: 6px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: background 0.2s;
-}
-
-.applyButton:hover {
-  background: #66bb6a;
-}
-
-.randomButton {
-  background: rgba(255, 193, 7, 0.2);
-  border: 1px solid rgba(255, 193, 7, 0.5);
-  color: #ffc107;
-  padding: 6px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: all 0.2s;
-}
-
-.randomButton:hover {
-  background: rgba(255, 193, 7, 0.3);
-}
-
-.error {
-  color: #f44336;
-  font-size: 12px;
-  padding: 4px 8px;
-  background: rgba(244, 67, 54, 0.1);
-  border-radius: 4px;
-}
-
-.examples {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 5px 12px;
+  min-height: 42px;
+  overflow: hidden;
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
+.algorithmSelector, .inputSection, .examples, .algorithmTabs, .exampleButtons, .inputGroup { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.algorithmTabs, .exampleButtons { overflow-x: auto; }
+.label { color: #b4c1bc; font-size: 11px; white-space: nowrap; }
+.algorithmTab, .exampleButton, .applyButton, .randomButton { flex: 0 0 auto; padding: 5px 8px; border: 1px solid rgba(255,255,255,.16); border-radius: 5px; background: rgba(255,255,255,.05); color: #c2d0cb; cursor: pointer; font-size: 11px; white-space: nowrap; }
+.algorithmTab.active { color: #9ad3c2; border-color: #4f8d7b; background: rgba(79,141,123,.16); }
+.complexity { margin-left: 5px; opacity: .7; font-size: 9px; }
+.inputSection { flex: 1; }
+.input { width: min(21vw, 300px); min-width: 100px; }
+.targetInput { width: 68px; }
+.input, .targetInput { padding: 5px 7px; border: 1px solid rgba(255,255,255,.18); border-radius: 4px; background: rgba(255,255,255,.08); color: #f0f4f2; font: 11px 'Monaco','Menlo',monospace; }
+.applyButton { color: #d3e9e1; background: #31564d; }
+.randomButton { color: #f0d18c; }
+.examples { flex: 0 1 auto; max-width: 260px; }
+.error { position: absolute; z-index: 20; top: 92px; left: 12px; padding: 5px 9px; border-radius: 4px; background: #6c3030; color: white; font-size: 11px; }
 
-.exampleButtons {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+@media (max-width: 1100px) {
+  .container { gap: 4px; }
+  .examples { display: none; }
+  .input { width: 160px; }
 }
-
-.exampleButton {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #ccc;
-  padding: 4px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: all 0.2s;
-}
-
-.exampleButton:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.3);
+@media (max-width: 760px) {
+  .container { overflow-x: auto; }
+  .algorithmSelector { display: none; }
+  .inputSection { flex: 0 0 auto; }
+  .input { width: 125px; }
 }

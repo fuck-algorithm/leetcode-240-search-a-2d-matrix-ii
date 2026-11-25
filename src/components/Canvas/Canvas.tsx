@@ -13,270 +13,141 @@ export function Canvas({ matrix, target, currentStep }: CanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
-
   const rows = matrix.length;
   const cols = matrix[0]?.length || 0;
-
-  // 计算单元格大小
-  const getCellSize = useCallback(() => {
-    if (!containerRef.current) return 50;
-    const containerWidth = containerRef.current.clientWidth - 100;
-    const containerHeight = containerRef.current.clientHeight - 150;
-    const maxCellWidth = containerWidth / (cols + 1);
-    const maxCellHeight = containerHeight / (rows + 2);
-    return Math.min(Math.max(Math.min(maxCellWidth, maxCellHeight), 35), 60);
-  }, [rows, cols]);
 
   const drawMatrix = useCallback(() => {
     if (!svgRef.current || !containerRef.current) return;
 
     const svg = d3.select(svgRef.current);
-    svg.selectAll('*').remove();
-
-    const cellSize = getCellSize();
+    const width = containerRef.current.clientWidth;
+    const height = containerRef.current.clientHeight;
+    const cellSize = Math.max(18, Math.min(60, (width - 120) / Math.max(cols, 1), (height - 170) / Math.max(rows, 1)));
     const matrixWidth = cols * cellSize;
     const matrixHeight = rows * cellSize;
-    
-    const containerWidth = containerRef.current.clientWidth;
-    const containerHeight = containerRef.current.clientHeight;
-    
-    const offsetX = (containerWidth - matrixWidth) / 2 + transform.x;
-    const offsetY = (containerHeight - matrixHeight) / 2 + transform.y - 20;
+    const offsetX = (width - matrixWidth) / 2 + transform.x;
+    const offsetY = (height - matrixHeight) / 2 + transform.y;
 
-    const g = svg.append('g')
-      .attr('transform', `translate(${offsetX}, ${offsetY}) scale(${transform.scale})`);
+    let zoomLayer = svg.select<SVGGElement>('.zoom-layer');
+    if (zoomLayer.empty()) zoomLayer = svg.append('g').attr('class', 'zoom-layer');
+    zoomLayer.interrupt('view').attr('transform', `translate(${offsetX},${offsetY}) scale(${transform.scale})`);
 
-    // 绘制目标值提示
-    g.append('text')
-      .attr('x', matrixWidth / 2)
-      .attr('y', -20)
-      .attr('text-anchor', 'middle')
-      .attr('fill', '#ffc107')
-      .attr('font-size', '14px')
-      .attr('font-weight', 'bold')
-      .text(`目标值: ${target}`);
+    let gridLayer = zoomLayer.select<SVGGElement>('.layer-grid');
+    if (gridLayer.empty()) gridLayer = zoomLayer.append('g').attr('class', 'layer-grid');
+    let trailLayer = zoomLayer.select<SVGGElement>('.layer-trail');
+    if (trailLayer.empty()) trailLayer = zoomLayer.append('g').attr('class', 'layer-trail');
+    let cellLayer = zoomLayer.select<SVGGElement>('.layer-cells');
+    if (cellLayer.empty()) cellLayer = zoomLayer.append('g').attr('class', 'layer-cells');
+    let focusLayer = zoomLayer.select<SVGGElement>('.layer-focus');
+    if (focusLayer.empty()) focusLayer = zoomLayer.append('g').attr('class', 'layer-focus');
 
-    // 绘制列索引
-    for (let j = 0; j < cols; j++) {
-      g.append('text')
-        .attr('x', j * cellSize + cellSize / 2)
-        .attr('y', -5)
-        .attr('text-anchor', 'middle')
-        .attr('fill', '#888')
-        .attr('font-size', '11px')
-        .text(j);
-    }
+    const cellData = matrix.flatMap((values, row) => values.map((value, col) => ({ row, col, value, id: `${row}:${col}` })));
+    const visited = new Set(currentStep?.visitedCells ?? []);
+    const excludedRows = new Set(currentStep?.eliminatedRows ?? []);
+    const excludedCols = new Set(currentStep?.eliminatedCols ?? []);
+    const isFocused = (cell: { row: number; col: number }) => currentStep?.row === cell.row && currentStep?.col === cell.col && currentStep?.comparison !== 'not_found';
+    const isFound = (cell: { row: number; col: number }) => isFocused(cell) && currentStep?.comparison === 'found';
 
-    // 绘制行索引
-    for (let i = 0; i < rows; i++) {
-      g.append('text')
-        .attr('x', -15)
-        .attr('y', i * cellSize + cellSize / 2 + 4)
-        .attr('text-anchor', 'middle')
-        .attr('fill', '#888')
-        .attr('font-size', '11px')
-        .text(i);
-    }
+    gridLayer.selectAll('text.column-index').data(d3.range(cols), (d) => String(d)).join('text')
+      .attr('class', 'column-index').attr('x', (col) => col * cellSize + cellSize / 2).attr('y', -10)
+      .attr('text-anchor', 'middle').attr('fill', '#82928e').attr('font-size', Math.min(12, cellSize * 0.28)).text((col) => `列 ${col + 1}`);
+    gridLayer.selectAll('text.row-index').data(d3.range(rows), (d) => String(d)).join('text')
+      .attr('class', 'row-index').attr('x', -12).attr('y', (row) => row * cellSize + cellSize / 2 + 4)
+      .attr('text-anchor', 'end').attr('fill', '#82928e').attr('font-size', Math.min(12, cellSize * 0.28)).text((row) => `行 ${row + 1}`);
 
-    // 绘制单元格
-    for (let i = 0; i < rows; i++) {
-      for (let j = 0; j < cols; j++) {
-        const value = matrix[i][j];
-        const isCurrent = currentStep && currentStep.row === i && currentStep.col === j;
-        const isEliminated = currentStep?.eliminatedRows?.includes(i) || 
-                           currentStep?.eliminatedCols?.includes(j);
-        const isFound = currentStep?.comparison === 'found' && isCurrent;
-        const isTarget = value === target && !isFound;
+    trailLayer.selectAll<SVGCircleElement, typeof cellData[number]>('circle.trail-dot').data(cellData.filter((cell) => visited.has(cell.id) && !isFocused(cell)), (cell) => cell.id).join('circle')
+      .attr('class', 'trail-dot').attr('cx', (cell) => cell.col * cellSize + cellSize - 7).attr('cy', (cell) => cell.row * cellSize + 7)
+      .attr('r', Math.max(2, cellSize * 0.065)).attr('fill', '#9ad3c2').attr('aria-label', '已经检查过');
 
-        let fillColor = 'rgba(255, 255, 255, 0.1)';
-        let strokeColor = 'rgba(255, 255, 255, 0.2)';
-        let textColor = '#e8e8e8';
+    const cells = cellLayer.selectAll<SVGGElement, typeof cellData[number]>('g.matrix-cell')
+      .data(cellData, (cell) => cell.id)
+      .join(
+        (enter) => {
+          const group = enter.append('g').attr('class', 'matrix-cell').attr('data-cell-id', (cell) => cell.id)
+            .attr('transform', (cell) => `translate(${cell.col * cellSize},${cell.row * cellSize})`).attr('opacity', 0);
+          group.append('rect').attr('rx', Math.max(4, cellSize * 0.12));
+          group.append('text').attr('class', 'cell-value').attr('text-anchor', 'middle').attr('dominant-baseline', 'central');
+          return group;
+        },
+        (update) => update,
+        (exit) => exit.interrupt('move').transition('exit').duration(100).attr('opacity', 0).remove()
+      );
 
-        if (isEliminated) {
-          fillColor = 'rgba(100, 100, 100, 0.2)';
-          textColor = '#666';
-          strokeColor = 'rgba(100, 100, 100, 0.3)';
-        }
-        if (isTarget) {
-          strokeColor = '#ffc107';
-          fillColor = 'rgba(255, 193, 7, 0.1)';
-        }
-        if (isCurrent && !isFound) {
-          fillColor = 'rgba(33, 150, 243, 0.3)';
-          strokeColor = '#2196f3';
-          textColor = '#fff';
-        }
-        if (isFound) {
-          fillColor = 'rgba(76, 175, 80, 0.4)';
-          strokeColor = '#4caf50';
-          textColor = '#fff';
-        }
+    cells.interrupt('exit').interrupt('move').transition('move').duration(window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 160)
+      .attr('transform', (cell) => `translate(${cell.col * cellSize},${cell.row * cellSize})`).attr('opacity', 1);
+    cells.attr('data-status', (cell) => isFound(cell) ? 'found' : isFocused(cell) ? 'current' : excludedRows.has(cell.row) || excludedCols.has(cell.col) ? 'excluded' : visited.has(cell.id) ? 'visited' : cell.value === target ? 'target' : 'idle');
+    cells.select('rect').attr('x', 1).attr('y', 1).attr('width', Math.max(1, cellSize - 2)).attr('height', Math.max(1, cellSize - 2))
+      .attr('fill', (cell) => isFound(cell) ? '#18765a' : isFocused(cell) ? '#e8b04b' : excludedRows.has(cell.row) || excludedCols.has(cell.col) ? '#24312f' : visited.has(cell.id) ? '#31564d' : cell.value === target ? '#285a4c' : '#1b2927')
+      .attr('stroke', (cell) => isFound(cell) ? '#9ad3c2' : isFocused(cell) ? '#fff0c2' : cell.value === target ? '#2f9e7d' : '#40534f')
+      .attr('stroke-width', (cell) => isFocused(cell) || isFound(cell) || cell.value === target ? 2 : 1);
+    cells.select('text.cell-value').attr('x', cellSize / 2).attr('y', cellSize / 2).attr('fill', (cell) => excludedRows.has(cell.row) || excludedCols.has(cell.col) ? '#70807b' : '#edf5f1')
+      .attr('font-size', Math.min(18, cellSize * 0.32)).attr('font-weight', (cell) => isFocused(cell) || isFound(cell) ? '700' : '500').text((cell) => cell.value);
 
-        // 单元格背景
-        g.append('rect')
-          .attr('x', j * cellSize + 2)
-          .attr('y', i * cellSize + 2)
-          .attr('width', cellSize - 4)
-          .attr('height', cellSize - 4)
-          .attr('rx', 4)
-          .attr('fill', fillColor)
-          .attr('stroke', strokeColor)
-          .attr('stroke-width', isCurrent || isFound ? 2 : 1);
+    const focus = currentStep && currentStep.row >= 0 && currentStep.row < rows && currentStep.col >= 0 && currentStep.col < cols && currentStep.comparison !== 'not_found'
+      ? [{ id: 'search-pointer', row: currentStep.row, col: currentStep.col }]
+      : [];
+    const pointer = focusLayer.selectAll<SVGGElement, typeof focus[number]>('g.search-pointer').data(focus, (item) => item.id).join(
+      (enter) => {
+        const group = enter.append('g').attr('class', 'search-pointer');
+        group.append('path').attr('d', 'M-7,-13 L7,-13 L0,-4 Z').attr('fill', '#e8b04b');
+        group.append('text').attr('text-anchor', 'middle').attr('fill', '#fff0c2').attr('font-size', 10).attr('font-weight', 700).attr('y', -18);
+        return group;
+      },
+      (update) => update,
+      (exit) => exit.remove()
+    );
+    pointer.interrupt('move').transition('move').duration(window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 160)
+      .attr('transform', (item) => `translate(${item.col * cellSize + cellSize / 2},${item.row * cellSize})`);
+    pointer.select('text').text(`(${currentStep?.row ?? 0}, ${currentStep?.col ?? 0})`);
 
-        // 单元格值
-        g.append('text')
-          .attr('x', j * cellSize + cellSize / 2)
-          .attr('y', i * cellSize + cellSize / 2 + 5)
-          .attr('text-anchor', 'middle')
-          .attr('fill', textColor)
-          .attr('font-size', cellSize > 45 ? '14px' : '12px')
-          .attr('font-weight', isCurrent || isFound ? 'bold' : 'normal')
-          .text(value);
-      }
-    }
-
-    // 绘制当前位置指示器
-    if (currentStep && currentStep.row >= 0 && currentStep.col >= 0 && 
-        currentStep.row < rows && currentStep.col < cols) {
-      const cx = currentStep.col * cellSize + cellSize / 2;
-      const cy = currentStep.row * cellSize + cellSize / 2;
-
-      // 指针标签
-      g.append('text')
-        .attr('x', cx)
-        .attr('y', cy - cellSize / 2 - 8)
-        .attr('text-anchor', 'middle')
-        .attr('fill', '#2196f3')
-        .attr('font-size', '11px')
-        .attr('font-weight', 'bold')
-        .text(`(${currentStep.row}, ${currentStep.col})`);
-    }
-
-    // 绘制搜索范围指示
-    if (currentStep && currentStep.searchRange) {
-      const { rowStart, rowEnd, colStart, colEnd } = currentStep.searchRange;
-      const rangeX = colStart * cellSize;
-      const rangeY = rowStart * cellSize;
-      const rangeWidth = (colEnd - colStart + 1) * cellSize;
-      const rangeHeight = (rowEnd - rowStart + 1) * cellSize;
-
-      g.append('rect')
-        .attr('x', rangeX)
-        .attr('y', rangeY)
-        .attr('width', rangeWidth)
-        .attr('height', rangeHeight)
-        .attr('fill', 'none')
-        .attr('stroke', 'rgba(76, 175, 80, 0.5)')
-        .attr('stroke-width', 2)
-        .attr('stroke-dasharray', '5,5')
-        .attr('rx', 4);
-    }
-
-    // 绘制步骤描述
-    if (currentStep) {
-      g.append('text')
-        .attr('x', matrixWidth / 2)
-        .attr('y', matrixHeight + 30)
-        .attr('text-anchor', 'middle')
-        .attr('fill', '#fff')
-        .attr('font-size', '13px')
-        .text(currentStep.description);
-
-      // 比较结果指示
-      if (currentStep.comparison !== 'init' && currentStep.comparison !== 'found' && 
-          currentStep.comparison !== 'not_found') {
-        const comparisonText = currentStep.comparison === 'greater' 
-          ? `${currentStep.currentValue} > ${target} → 向左` 
-          : `${currentStep.currentValue} < ${target} → 向下`;
-        
-        g.append('text')
-          .attr('x', matrixWidth / 2)
-          .attr('y', matrixHeight + 50)
-          .attr('text-anchor', 'middle')
-          .attr('fill', currentStep.comparison === 'greater' ? '#ff9800' : '#03a9f4')
-          .attr('font-size', '12px')
-          .text(comparisonText);
-      }
-    }
-
-    // 绘制变量状态
-    if (currentStep?.variables) {
-      const vars = currentStep.variables;
-      const varTexts: string[] = [];
-      
-      if ('x' in vars) varTexts.push(`x=${vars.x}`);
-      if ('y' in vars) varTexts.push(`y=${vars.y}`);
-      if ('matrix[x][y]' in vars) varTexts.push(`当前值=${vars['matrix[x][y]']}`);
-      
-      if (varTexts.length > 0) {
-        g.append('text')
-          .attr('x', matrixWidth / 2)
-          .attr('y', matrixHeight + 70)
-          .attr('text-anchor', 'middle')
-          .attr('fill', '#aaa')
-          .attr('font-size', '11px')
-          .text(varTexts.join('  |  '));
-      }
-    }
-
-  }, [matrix, target, currentStep, transform, getCellSize, rows, cols]);
+    let overlay = svg.select<SVGGElement>('.canvas-overlay');
+    if (overlay.empty()) overlay = svg.append('g').attr('class', 'canvas-overlay').attr('pointer-events', 'none');
+    overlay.attr('transform', 'translate(14,18)');
+    const narration = currentStep?.narration || currentStep?.description || '从右上角开始：比较当前数，再排除一整行或一整列。';
+    overlay.selectAll('rect.overlay-bg').data([null]).join('rect').attr('class', 'overlay-bg').attr('width', Math.min(440, Math.max(230, width * 0.45))).attr('height', 98).attr('rx', 10).attr('fill', '#14211f').attr('stroke', '#40534f');
+    overlay.selectAll('text.overlay-title').data([null]).join('text').attr('class', 'overlay-title').attr('x', 12).attr('y', 22).attr('fill', '#9ad3c2').attr('font-size', 12).attr('font-weight', 700).text(`目标 ${target} · ${currentStep?.operation ?? '准备'}`);
+    const words = narration.length > 30 ? [narration.slice(0, 30), narration.slice(30)] : [narration];
+    overlay.selectAll('text.overlay-copy').data(words.slice(0, 2), (_, index) => String(index)).join('text').attr('class', 'overlay-copy').attr('x', 12).attr('y', (_, index) => 46 + index * 20).attr('fill', '#edf5f1').attr('font-size', 12).text((line) => line);
+    overlay.selectAll<SVGTextElement, { id: string; text: string }>('text.legend').data([
+      { id: 'current', text: '▶ 正在看' }, { id: 'visited', text: '• 看过了' }, { id: 'excluded', text: '× 已排除' }, { id: 'target', text: '◎ 目标值' }
+    ], (item) => item.id).join('text').attr('class', 'legend').attr('x', (_, index) => 14 + index * Math.min(100, (width - 28) / 4)).attr('y', height - 15).attr('fill', (item) => item.id === 'target' ? '#9ad3c2' : '#c2d0cb').attr('font-size', Math.min(11, width / 35)).text((item) => item.text);
+    overlay.selectAll('text.counter').data([null]).join('text').attr('class', 'counter').attr('x', width - 14).attr('y', 20).attr('text-anchor', 'end').attr('fill', '#9ad3c2').attr('font-size', 12)
+      .text(`检查 ${visited.size} 格 | 排除 ${excludedRows.size + excludedCols.size} 行/列`);
+  }, [matrix, target, currentStep, transform, rows, cols]);
 
   useEffect(() => {
     drawMatrix();
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver(drawMatrix);
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
   }, [drawMatrix]);
 
-  // 处理拖拽
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return;
-    const startX = e.clientX - transform.x;
-    const startY = e.clientY - transform.y;
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      setTransform(prev => ({
-        ...prev,
-        x: moveEvent.clientX - startX,
-        y: moveEvent.clientY - startY
-      }));
-    };
-
+  const handleMouseDown = useCallback((event: React.MouseEvent) => {
+    if (event.button !== 0) return;
+    const startX = event.clientX - transform.x;
+    const startY = event.clientY - transform.y;
+    const handleMouseMove = (moveEvent: MouseEvent) => setTransform((previous) => ({ ...previous, x: moveEvent.clientX - startX, y: moveEvent.clientY - startY }));
     const handleMouseUp = () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   }, [transform.x, transform.y]);
 
-  // 处理缩放
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setTransform(prev => ({
-      ...prev,
-      scale: Math.min(Math.max(prev.scale * delta, 0.5), 2)
-    }));
-  }, []);
-
-  // 重置视图
-  const handleReset = useCallback(() => {
-    setTransform({ x: 0, y: 0, scale: 1 });
+  const handleWheel = useCallback((event: React.WheelEvent) => {
+    event.preventDefault();
+    const delta = event.deltaY > 0 ? 0.9 : 1.1;
+    setTransform((previous) => ({ ...previous, scale: Math.min(Math.max(previous.scale * delta, 0.5), 2) }));
   }, []);
 
   return (
     <div className={styles.container} ref={containerRef}>
-      <div className={styles.controls}>
-        <button className={styles.resetButton} onClick={handleReset}>
-          重置视图
-        </button>
-        <span className={styles.hint}>拖拽移动 | 滚轮缩放</span>
+      <div className={styles.controls}><span className={styles.hint}>箭头指向当前格 · 拖拽移动 · 滚轮缩放</span>
+        <button className={styles.resetButton} onClick={() => setTransform({ x: 0, y: 0, scale: 1 })}>重置视图</button>
       </div>
-      <svg
-        ref={svgRef}
-        className={styles.svg}
-        onMouseDown={handleMouseDown}
-        onWheel={handleWheel}
-      />
+      <svg ref={svgRef} className={styles.svg} aria-label="矩阵搜索过程" onMouseDown={handleMouseDown} onWheel={handleWheel} />
     </div>
   );
 }

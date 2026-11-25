@@ -2,6 +2,8 @@
 export interface AlgorithmStep {
   id: number;
   description: string;
+  operation?: 'init' | 'compare' | 'move' | 'eliminate_row' | 'eliminate_col' | 'match' | 'done';
+  narration?: string;
   // 当前位置
   row: number;
   col: number;
@@ -33,6 +35,8 @@ export interface AlgorithmStep {
   found?: boolean;
   // 动画类型
   animationType: 'move' | 'compare' | 'eliminate_row' | 'eliminate_col' | 'found' | 'not_found' | 'init';
+  // 已查看过的单元格坐标，格式为 row:col
+  visitedCells?: string[];
   // 被排除的行/列
   eliminatedRows?: number[];
   eliminatedCols?: number[];
