@@ -102,12 +102,47 @@ export function Canvas({ matrix, target, currentStep }: CanvasProps) {
 
     let overlay = svg.select<SVGGElement>('.canvas-overlay');
     if (overlay.empty()) overlay = svg.append('g').attr('class', 'canvas-overlay').attr('pointer-events', 'none');
-    overlay.attr('transform', 'translate(14,18)');
-    const narration = currentStep?.narration || currentStep?.description || '从右上角开始：比较当前数，再排除一整行或一整列。';
-    overlay.selectAll('rect.overlay-bg').data([null]).join('rect').attr('class', 'overlay-bg').attr('width', Math.min(440, Math.max(230, width * 0.45))).attr('height', 98).attr('rx', 10).attr('fill', '#14211f').attr('stroke', '#40534f');
-    overlay.selectAll('text.overlay-title').data([null]).join('text').attr('class', 'overlay-title').attr('x', 12).attr('y', 22).attr('fill', '#9ad3c2').attr('font-size', 12).attr('font-weight', 700).text(`目标 ${target} · ${currentStep?.operation ?? '准备'}`);
-    const words = narration.length > 30 ? [narration.slice(0, 30), narration.slice(30)] : [narration];
-    overlay.selectAll('text.overlay-copy').data(words.slice(0, 2), (_, index) => String(index)).join('text').attr('class', 'overlay-copy').attr('x', 12).attr('y', (_, index) => 46 + index * 20).attr('fill', '#edf5f1').attr('font-size', 12).text((line) => line);
+    const focusedRow = Math.min(Math.max(currentStep?.row ?? 0, 0), rows - 1);
+    const focusedCol = Math.min(Math.max(currentStep?.col ?? 0, 0), cols - 1);
+    const focusX = offsetX + (focusedCol + 0.5) * cellSize * transform.scale;
+    const focusY = offsetY + (focusedRow + 0.5) * cellSize * transform.scale;
+    const calloutWidth = Math.min(300, Math.max(220, width - 32));
+    const calloutHeight = 92;
+    const calloutX = focusX < width * 0.58
+      ? Math.min(width - calloutWidth - 16, focusX + 26)
+      : Math.max(16, focusX - calloutWidth - 26);
+    const calloutY = Math.min(Math.max(focusY - calloutHeight / 2, 54), height - calloutHeight - 34);
+    const value = currentStep?.currentValue ?? matrix[focusedRow]?.[focusedCol];
+    const operation = currentStep?.operation;
+    const comparison = currentStep?.comparison;
+    const decision = operation === 'eliminate_col'
+      ? [`${value} > ${target}：比目标大`, `这一列下面只会更大`, `排除第 ${focusedCol + 1} 列，向左 ←`]
+      : operation === 'eliminate_row'
+        ? [`${value} < ${target}：比目标小`, `这一行左边只会更小`, `排除第 ${focusedRow + 1} 行，向下 ↓`]
+        : comparison === 'found'
+          ? [`${value} = ${target}：找到目标`, '答案就在当前格', '搜索结束 ✓']
+          : comparison === 'not_found'
+            ? ['指针已经越界', '每一步都排除了一整行或一整列', `矩阵里没有 ${target} ✓`]
+            : [`目标值是 ${target}`, '从右上角开始比较', '大了向左，小了向下'];
+    const callout = [{ id: 'decision', x: calloutX, y: calloutY, focusX, focusY, hasFocus: comparison !== 'not_found' }];
+    overlay.selectAll<SVGLineElement, typeof callout[number]>('line.decision-connector').data(callout, (item) => item.id).join('line')
+      .attr('class', 'decision-connector').attr('x1', (item) => item.hasFocus ? (item.x > item.focusX ? item.x : item.x + calloutWidth) : item.x + calloutWidth / 2)
+      .attr('y1', (item) => item.y + calloutHeight / 2).attr('x2', (item) => item.focusX).attr('y2', (item) => item.focusY)
+      .attr('stroke', '#e8b04b').attr('stroke-width', 2).attr('stroke-dasharray', '5 4').attr('opacity', (item) => item.hasFocus ? 0.9 : 0);
+    const decisionCard = overlay.selectAll<SVGGElement, typeof callout[number]>('g.decision-callout').data(callout, (item) => item.id).join(
+      (enter) => {
+        const group = enter.append('g').attr('class', 'decision-callout');
+        group.append('rect').attr('class', 'decision-bg').attr('rx', 9);
+        group.append('text').attr('class', 'decision-title');
+        group.selectAll('text.decision-line').data([0, 1, 2]).join('text').attr('class', 'decision-line');
+        return group;
+      }
+    );
+    decisionCard.attr('transform', (item) => `translate(${item.x},${item.y})`);
+    decisionCard.select('rect').attr('width', calloutWidth).attr('height', calloutHeight).attr('fill', '#14211f').attr('stroke', comparison === 'found' ? '#4f8d7b' : '#e8b04b').attr('stroke-width', 1.5);
+    decisionCard.select('text.decision-title').attr('x', 12).attr('y', 20).attr('fill', '#e8b04b').attr('font-size', 11).attr('font-weight', 700).text(`为什么这样走？ · ${operation ?? '准备'}`);
+    decisionCard.selectAll<SVGTextElement, number>('text.decision-line').data([0, 1, 2]).attr('x', 12).attr('y', (line) => 42 + line * 16)
+      .attr('fill', (line) => line === 2 ? '#9ad3c2' : '#edf5f1').attr('font-size', 11).attr('font-weight', (line) => line === 2 ? 700 : 400).text((line) => decision[line]);
     overlay.selectAll<SVGTextElement, { id: string; text: string }>('text.legend').data([
       { id: 'current', text: '▶ 正在看' }, { id: 'visited', text: '• 看过了' }, { id: 'excluded', text: '× 已排除' }, { id: 'target', text: '◎ 目标值' }
     ], (item) => item.id).join('text').attr('class', 'legend').attr('x', (_, index) => 14 + index * Math.min(100, (width - 28) / 4)).attr('y', height - 15).attr('fill', (item) => item.id === 'target' ? '#9ad3c2' : '#c2d0cb').attr('font-size', Math.min(11, width / 35)).text((item) => item.text);
