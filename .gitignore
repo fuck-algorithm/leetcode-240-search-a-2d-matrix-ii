@@ -26,3 +26,6 @@ dist-ssr
 # Build outputs
 build
 .cache
+
+# Local Claude Code status-bar URL (contains deployment details)
+/server-url.txt
